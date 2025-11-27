@@ -12,13 +12,23 @@ Examples:
 """
 
 import asyncio
+import os
 import sys
 from datetime import datetime
 
 import msgpack
 from redis.asyncio import Redis
+from dotenv import load_dotenv
 
-from app.config import settings
+# Load environment variables
+load_dotenv()
+
+# Simple settings class
+class Settings:
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    enable_redis_pubsub = os.getenv("ENABLE_REDIS_PUBSUB", "true").lower() == "true"
+
+settings = Settings()
 
 
 async def subscribe_to_features(redis: Redis, user_id: str):
