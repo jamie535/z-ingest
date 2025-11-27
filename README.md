@@ -88,7 +88,9 @@ Server runs on `http://localhost:8000`
 
 ### WebSocket Endpoints
 
-#### `/stream` - Edge Relay Endpoint
+#### `/stream` - Edge Relay Endpoint (Bidirectional)
+
+Edge relays can both **send** data (features, raw EEG) and **receive** data (predictions, commands, alerts) over the same WebSocket connection.
 
 **Authentication (first message):**
 ```json
@@ -124,23 +126,82 @@ Server runs on `http://localhost:8000`
 }
 ```
 
-#### `/subscribe/{user_id}` - Consumer Endpoint
-
-**Subscribe to features/raw EEG** (messages forwarded automatically)
-
-**Send prediction back to edge:**
+**Receive predictions from Azure ML:**
 ```json
 {
     "type": "prediction",
-    "prediction_type": "workload_azure_lstm",
-    "classifier_name": "azure_ml_lstm_v2",
-    "version": "v2.1.0",
+    "timestamp": "2025-11-27T16:00:00Z",
+    "source": "azure_ml",
     "data": {
-        "workload_prediction": 0.72,
-        "confidence": 0.94
+        "model_name": "workload_lstm_v2",
+        "workload_prediction": 0.78,
+        "confidence": 0.92,
+        "next_5min_trend": "increasing"
     }
 }
 ```
+
+**Receive commands:**
+```json
+{
+    "type": "command",
+    "command": "update_sampling_rate",
+    "parameters": {
+        "sampling_rate": 256
+    }
+}
+```
+
+**Receive alerts:**
+```json
+{
+    "type": "alert",
+    "alert_type": "high_workload",
+    "severity": "warning",
+    "message": "Cognitive load exceeding 80% for 5 minutes",
+    "metadata": {
+        "current_workload": 0.85,
+        "duration_seconds": 300
+    }
+}
+```
+
+#### `/subscribe/{user_id}` - Consumer Endpoint (Bidirectional)
+
+**Receive features/raw EEG** (messages forwarded automatically via Redis pub/sub)
+
+**Send prediction back to edge relay:**
+
+Consumers (like Azure ML services) can send predictions back to the edge relay through the ingestion server:
+
+```python
+# In your Azure ML consumer/service
+import websockets
+import msgpack
+
+async with websockets.connect("wss://your-server.com/subscribe/user_123") as ws:
+    # Receive data from edge relay
+    data = await ws.recv()
+    features = msgpack.unpackb(data)
+
+    # Process with Azure ML
+    prediction = await azure_ml_model.predict(features)
+
+    # Send prediction back to edge relay
+    response = {
+        "type": "prediction",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source": "azure_ml",
+        "data": {
+            "model_name": "workload_lstm_v2",
+            "workload_prediction": prediction["workload"],
+            "confidence": prediction["confidence"]
+        }
+    }
+    await ws.send(msgpack.packb(response))
+```
+
+The ingestion server will automatically forward this prediction to the connected edge relay.
 
 ### REST Endpoints
 
@@ -187,25 +248,51 @@ data            JSONB NOT NULL  -- {"channels": [0.1, 0.2, ...]}
 Edit `.env`:
 
 ```env
+# Database
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/ingestion
+
+# Redis
 REDIS_URL=redis://localhost:6379
+
+# Authentication
 EDGE_API_KEY=your-secret-key-here
+
+# Server
 LOG_LEVEL=INFO
+
+# Persistence Configuration (Optional)
+# Set to false to disable database/redis persistence during development
+# Data will only be kept in memory (lost on restart)
+ENABLE_DB_PERSISTENCE=true
+ENABLE_REDIS_PUBSUB=true
 ```
 
 ## Development
 
 ```bash
 # Install with dev dependencies
-pip install -e ".[dev]"
+pip install -e .
 
 # Run tests
 pytest
 
+# Run Redis pub/sub tests
+pytest tests/test_redis_pubsub.py -v
+
+# Subscribe to live streams (for testing)
+python scripts/subscribe_to_stream.py user123 both
+
 # Format code
-black app/
 ruff check --fix app/
 ```
+
+## Testing
+
+See [tests/README.md](tests/README.md) for comprehensive testing guide including:
+- Redis pub/sub tests
+- Live stream subscriber
+- Integration testing
+- Performance testing
 
 ## Deployment
 

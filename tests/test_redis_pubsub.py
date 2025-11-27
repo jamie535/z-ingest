@@ -11,7 +11,7 @@ from redis.asyncio import Redis
 from app.config import settings
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 async def redis_client():
     """Create Redis client for testing."""
     client = Redis.from_url(settings.redis_url, decode_responses=False)
@@ -19,8 +19,8 @@ async def redis_client():
     await client.aclose()
 
 
-@pytest.fixture
-async def test_user_id():
+@pytest.fixture(scope="function")
+def test_user_id():
     """Generate a unique test user ID."""
     return f"test-user-{uuid4().hex[:8]}"
 
