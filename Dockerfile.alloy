@@ -1,0 +1,10 @@
+FROM grafana/alloy:latest
+
+# Copy Railway-specific Alloy configuration
+COPY alloy-config-railway.alloy /etc/alloy/config.alloy
+
+# Expose Alloy UI port (optional, for debugging)
+EXPOSE 12345
+
+# Run Alloy with the configuration
+CMD ["run", "/etc/alloy/config.alloy", "--server.http.listen-addr=0.0.0.0:12345"]
