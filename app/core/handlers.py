@@ -7,6 +7,7 @@ from uuid import UUID
 import msgpack  # type: ignore[import-untyped]
 
 from . import metrics
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,25 +39,27 @@ async def handle_features(app, user_id: str, session_id: UUID, data: dict):
         stats = await app.state.buffers[user_id].get_stats()
         metrics.buffer_size.labels(user_id=user_id).set(stats["total_samples"])
 
-        # 2. Publish to Redis (broadcast)
-        try:
-            await app.state.redis.publish(
-                f"user:{user_id}:features",
-                msgpack.packb(data)
-            )
-        except Exception as e:
-            logger.error(f"Redis publish error: {e}")
+        # 2. Publish to Redis (broadcast) - optional
+        if settings.enable_redis_pubsub:
+            try:
+                await app.state.redis.publish(
+                    f"user:{user_id}:features",
+                    msgpack.packb(data)
+                )
+            except Exception as e:
+                logger.error(f"Redis publish error: {e}")
 
-        # 3. Queue for database (batched)
-        await app.state.persistence.add_prediction(
-            timestamp=timestamp,
-            session_id=session_id,
-            user_id=user_id,
-            prediction_type="workload_edge",
-            classifier_name="edge_relay",
-            data=data,
-            confidence=data.get("confidence")
-        )
+        # 3. Queue for database (batched) - optional
+        if settings.enable_database_persistence:
+            await app.state.persistence.add_prediction(
+                timestamp=timestamp,
+                session_id=session_id,
+                user_id=user_id,
+                prediction_type="workload_edge",
+                classifier_name="edge_relay",
+                data=data,
+                confidence=data.get("confidence")
+            )
 
         # Track successful processing
         metrics.messages_processed.labels(message_type="features").inc()
@@ -89,22 +92,24 @@ async def handle_raw_sample(app, user_id: str, session_id: UUID, data: dict):
             sample_type="raw"
         )
 
-        # 2. Publish to Redis
-        try:
-            await app.state.redis.publish(
-                f"user:{user_id}:raw",
-                msgpack.packb(data)
-            )
-        except Exception as e:
-            logger.error(f"Redis publish error: {e}")
+        # 2. Publish to Redis - optional
+        if settings.enable_redis_pubsub:
+            try:
+                await app.state.redis.publish(
+                    f"user:{user_id}:raw",
+                    msgpack.packb(data)
+                )
+            except Exception as e:
+                logger.error(f"Redis publish error: {e}")
 
-        # 3. Queue for database
-        await app.state.persistence.add_raw_sample(
-            timestamp=timestamp,
-            session_id=session_id,
-            user_id=user_id,
-            data=data
-        )
+        # 3. Queue for database - optional
+        if settings.enable_database_persistence:
+            await app.state.persistence.add_raw_sample(
+                timestamp=timestamp,
+                session_id=session_id,
+                user_id=user_id,
+                data=data
+            )
 
         # Track successful processing
         metrics.messages_processed.labels(message_type="raw").inc()
