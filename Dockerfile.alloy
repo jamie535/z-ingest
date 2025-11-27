@@ -1,10 +1,16 @@
 FROM grafana/alloy:latest
 
-# Copy Railway-specific Alloy configuration
-COPY alloy-config-railway.alloy /etc/alloy/config.alloy
+# Copy configuration template
+COPY alloy-config-railway.alloy /etc/alloy/config.alloy.template
 
-# Expose Alloy UI port (optional, for debugging)
+# Create entrypoint script
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo 'envsubst < /etc/alloy/config.alloy.template > /etc/alloy/config.alloy' >> /entrypoint.sh && \
+    echo 'exec alloy run /etc/alloy/config.alloy --server.http.listen-addr=0.0.0.0:12345' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
+# Expose Alloy UI port
 EXPOSE 12345
 
-# Run Alloy with the configuration
-CMD ["run", "/etc/alloy/config.alloy", "--server.http.listen-addr=0.0.0.0:12345"]
+# Use entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]

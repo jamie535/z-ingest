@@ -22,11 +22,11 @@ prometheus.scrape "zander_ingestion" {
 prometheus.remote_write "metrics_hosted_prometheus" {
   endpoint {
     name = "hosted-prometheus"
-    url  = env("GRAFANA_CLOUD_URL")
+    url  = "${GRAFANA_CLOUD_URL}"
 
     basic_auth {
-      username = env("GRAFANA_CLOUD_USERNAME")
-      password = env("GRAFANA_CLOUD_API_KEY")
+      username = "${GRAFANA_CLOUD_USERNAME}"
+      password = "${GRAFANA_CLOUD_API_KEY}"
     }
   }
 }
