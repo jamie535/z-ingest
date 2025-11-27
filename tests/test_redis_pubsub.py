@@ -6,12 +6,13 @@ from uuid import uuid4
 
 import msgpack
 import pytest
+import pytest_asyncio
 from redis.asyncio import Redis
 
 from app.config import settings
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture
 async def redis_client():
     """Create Redis client for testing."""
     client = Redis.from_url(settings.redis_url, decode_responses=False)
@@ -19,7 +20,7 @@ async def redis_client():
     await client.aclose()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def test_user_id():
     """Generate a unique test user ID."""
     return f"test-user-{uuid4().hex[:8]}"
