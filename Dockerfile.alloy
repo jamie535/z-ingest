@@ -1,5 +1,9 @@
 FROM grafana/alloy:latest
 
+# Install gettext for envsubst
+USER root
+RUN apk add --no-cache gettext
+
 # Copy configuration template
 COPY alloy-config-railway.alloy /etc/alloy/config.alloy.template
 
