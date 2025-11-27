@@ -1,0 +1,21 @@
+# Core dependencies
+fastapi[standard]
+uvicorn[standard]
+redis[hiredis]
+asyncpg
+sqlalchemy[asyncio]
+msgpack
+hypercorn
+pydantic-settings
+alembic
+python-dotenv
+prometheus-client
+prometheus-fastapi-instrumentator
+
+# Dev dependencies (optional)
+pytest
+pytest-asyncio
+httpx
+websockets
+mypy
+ruff
