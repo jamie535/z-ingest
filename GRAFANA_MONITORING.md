@@ -1,53 +1,66 @@
-# Grafana Cloud Monitoring Setup
+# Grafana Monitoring Setup
 
-Simple guide to monitor your Railway ingestion service with Grafana Cloud.
+Complete self-hosted monitoring stack on Railway for your ingestion service.
 
-## Using Railway's Grafana Alloy Template
+## Using Railway's Grafana Stack Template
 
-Railway has a pre-built template that handles everything for you.
+Railway has a complete observability stack template (Grafana + Prometheus + Loki + Tempo).
 
 ### Step 1: Deploy the Template
 
-1. Go to: https://railway.com/deploy/railway-grafana-allo
+1. Go to: https://railway.app/template/8TLSQD
 2. Click **Deploy Now**
 3. Select your Railway project (same one as your ingestion service)
-4. Railway creates a new `grafana-alloy` service
+4. Railway creates: Grafana, Prometheus, Loki, and Tempo services
 
-### Step 2: Configure Grafana Cloud Credentials
+### Step 2: Fork and Configure Prometheus
 
-In the new `grafana-alloy` service:
+To add your ingestion service as a scrape target:
 
-1. Go to **Variables** tab
-2. Add these 3 variables (get from Grafana Cloud → Connections → Hosted Prometheus):
+1. **Fork the template repo**: https://github.com/MykalMachon/railway-grafana-stack
+2. **Edit** `prometheus/prometheus.yml` in your fork
+3. **Add** your scrape job:
 
-```
-GRAFANA_CLOUD_URL=<your-prometheus-push-url>
-GRAFANA_CLOUD_USERNAME=<your-instance-id>
-GRAFANA_CLOUD_API_KEY=<your-api-key>
-```
+```yaml
+global:
+  scrape_interval: 15s
 
-Example:
-- URL: `https://prometheus-prod-65-prod-eu-west-2.grafana.net/api/prom/push`
-- Username: `2827197`
-- API Key: `glc_...` (from Grafana Cloud)
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
 
-### Step 3: Configure Alloy to Scrape Your App
-
-The template exposes HTTP endpoints. You need to tell it where to scrape your metrics.
-
-Check the template's documentation for configuration details, or configure via Alloy's config file to scrape:
-```
-https://jubilant-warmth.railway.internal:8080/metrics
+  - job_name: 'zander-ingestion'
+    scheme: http
+    static_configs:
+      - targets: ['jubilant-warmth.railway.internal:8080']
+    metrics_path: '/metrics'
 ```
 
-### Step 4: Verify in Grafana Cloud
+4. **Commit** the changes to your fork
+
+### Step 3: Update Railway Prometheus Service
+
+1. In Railway → **Prometheus service** → **Settings** → **Source**
+2. Click **Disconnect**
+3. **Connect to GitHub Repo** → Select your forked repo
+4. Set **Root Directory**: `prometheus`
+5. Railway redeploys Prometheus with your config
+
+### Step 4: Verify in Grafana
 
 After 2 minutes:
 
-1. Go to **Explore** in Grafana Cloud
-2. Select **Prometheus** data source
-3. Query: `up{job="zander-ingestion"}`
-4. Should see your metrics!
+1. Open your Grafana URL (from Railway service)
+2. Login (check `GF_SECURITY_ADMIN_USER` and `GF_SECURITY_ADMIN_PASSWORD` variables)
+3. Go to **Explore** → Select **Prometheus**
+4. Query: `up{job="zander-ingestion"}`
+5. Should return `1` - success! ✅
+
+Then try your custom metrics:
+```promql
+edge_relay_connections + consumer_connections
+```
 
 ## Create Dashboards
 
@@ -111,23 +124,32 @@ edge_relay_connections == 0
 
 ## Cost
 
-- **Grafana Cloud**: Free tier (10k series, 14 days retention)
-- **Railway Alloy service**: ~$2-5/month
+- **Grafana Stack on Railway**: ~$10-15/month total for all services
+  - Grafana: ~$3-5/month
+  - Prometheus: ~$3-5/month
+  - Loki: ~$2-3/month
+  - Tempo: ~$2-3/month
+- **Benefits**: Complete self-hosted observability, no external dependencies
 
 ## Troubleshooting
 
-**No metrics in Grafana Cloud:**
-- Check Alloy service logs in Railway
-- Verify Grafana Cloud credentials
-- Wait 2-3 minutes for initial data
+**No metrics showing:**
+- Check Prometheus is scraping: Query `up` in Grafana Explore
+- Verify your ingestion service exposes `/metrics`: Visit https://jubilant-warmth-production.up.railway.app/metrics
+- Check Prometheus logs in Railway for errors
 
-**Connection errors:**
-- Ensure your ingestion service exposes `/metrics`
-- Check Railway private networking is enabled
-- Verify service name: `jubilant-warmth.railway.internal`
+**Target down:**
+- Ensure Railway private networking is enabled on ingestion service
+- Verify service internal DNS: `jubilant-warmth.railway.internal`
+- Check port is correct: `8080`
+
+**YAML parse errors:**
+- Check `prometheus.yml` indentation (use spaces, not tabs)
+- Validate YAML syntax
+- Check Prometheus logs for specific line numbers
 
 ## Links
 
-- Railway Alloy Template: https://railway.com/deploy/railway-grafana-allo
-- Grafana Cloud: https://grafana.com
+- Railway Grafana Stack Template: https://railway.app/template/8TLSQD
+- Template GitHub Repo: https://github.com/MykalMachon/railway-grafana-stack
 - Your ingestion service metrics: https://jubilant-warmth-production.up.railway.app/metrics

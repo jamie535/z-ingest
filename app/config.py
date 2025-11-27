@@ -25,7 +25,9 @@ class Settings(BaseSettings):
     # Buffer
     buffer_max_size: int = 1000
 
-    # Persistence
+    # Persistence Configuration
+    enable_database_persistence: bool = os.getenv("ENABLE_DB_PERSISTENCE", "true").lower() == "true"
+    enable_redis_pubsub: bool = os.getenv("ENABLE_REDIS_PUBSUB", "true").lower() == "true"
     batch_size: int = 50
     flush_interval: float = 5.0
 
