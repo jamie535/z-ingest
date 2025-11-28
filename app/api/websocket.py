@@ -144,27 +144,14 @@ async def consumer_endpoint(websocket: WebSocket, user_id: str, app):
                     data = msgpack.unpackb(message["data"])
                     await websocket.send_json(data)
 
-        # Task 2: Receive messages from consumer (predictions/commands)
+        # Task 2: Receive messages from consumer (predictions/commands/alerts)
         async def receive_from_consumer():
             while True:
                 msg = await websocket.receive_json()
 
-                if msg.get("type") == "prediction":
-                    # Forward prediction to edge relay
-                    success = await app.state.connections.send_to_edge(user_id, msg)
-
-                    # Store Azure prediction to database
-                    if success:
-                        await app.state.persistence.add_prediction(
-                            timestamp=datetime.now(timezone.utc),
-                            session_id=msg.get("session_id"),
-                            user_id=user_id,
-                            prediction_type=msg.get("prediction_type", "azure_ml"),
-                            classifier_name=msg.get("classifier_name", "azure_unknown"),
-                            data=msg.get("data", {}),
-                            confidence=msg.get("data", {}).get("confidence"),
-                            classifier_version=msg.get("version")
-                        )
+                # Forward any message type to edge relay
+                # Consumer predictions are NOT stored to database (no session context)
+                await app.state.connections.send_to_edge(user_id, msg)
 
         # Run both tasks concurrently (bidirectional)
         await asyncio.gather(forward_from_redis(), receive_from_consumer())
